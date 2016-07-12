@@ -46,6 +46,10 @@ func New(ttl time.Duration, boxSize int) *Mailboxes {
 	return &m
 }
 
+func (m *Mailboxes) Length() int {
+	return len(m.boxes)
+}
+
 func (m *Mailboxes) gc() {
 	for {
 		mx := <-m.trashtube
