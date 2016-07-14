@@ -12,8 +12,9 @@ func TestMailbox(t *testing.T) {
 	mxAlice := m.Subscribe("alice")
 
 	go func() {
+		mails := mxAlice.Mails()
 		for {
-			msg := <-mxAlice.Mails()
+			msg := <-mails
 			if string(msg) == "plop" {
 				cpt++
 				machin <- true
@@ -22,8 +23,9 @@ func TestMailbox(t *testing.T) {
 	}()
 	mxBob := m.Subscribe("bob")
 	go func() {
+		mails := mxBob.Mails()
 		for {
-			msg := <-mxBob.Mails()
+			msg := <-mails
 			if string(msg) == "plop" {
 				cpt++
 				machin <- true
@@ -63,7 +65,13 @@ func TestMailbox(t *testing.T) {
 	}
 
 	mxAlice.Leave()
+	if mxAlice.ETA().IsZero() {
+		t.Error("Alice ETA is zero")
+	}
 	mxAlice2 := m.Subscribe("alice")
+	if !mxAlice.ETA().IsZero() {
+		t.Error("Alice ETA is not zero")
+	}
 	mxAlice2.Mails() <- []byte("plop")
 	<-machin
 	if cpt != 3 {

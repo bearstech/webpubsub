@@ -1,7 +1,6 @@
 package mailbox
 
 import (
-	//"fmt"
 	"sync"
 	"time"
 )
@@ -89,7 +88,20 @@ func (m *Mailboxes) Publish(mail []byte) int {
 
 func (m *Mailboxes) Subscribe(user string) *MailboxProxy {
 	m.lock.RLock()
-	_, ok := m.boxes[user]
+	mx, ok := m.boxes[user]
+	if ok {
+		gni := mx.death.Stop()
+		if gni {
+			mx.eta = time.Time{}
+			// Start ugly hack
+			// There is a deadlock without that
+			gni = mx.death.Reset(time.Millisecond)
+			if gni {
+				panic("This timer should be stopped")
+			}
+			// End ugly hack
+		}
+	}
 	m.lock.RUnlock()
 	if !ok {
 		m.lock.Lock()
