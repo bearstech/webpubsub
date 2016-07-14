@@ -26,7 +26,15 @@ type MailboxProxy struct {
 }
 
 func (mp *MailboxProxy) Mails() chan []byte {
+	defer mp.parent.lock.RUnlock()
+	mp.parent.lock.RLock()
 	return mp.parent.boxes[mp.user].mails
+}
+
+func (mp *MailboxProxy) ETA() time.Time {
+	defer mp.parent.lock.RUnlock()
+	mp.parent.lock.RLock()
+	return mp.parent.boxes[mp.user].eta
 }
 
 func (mp *MailboxProxy) Leave() {
