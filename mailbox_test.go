@@ -7,7 +7,6 @@ import (
 
 func TestMailbox(t *testing.T) {
 	m := New(time.Duration(150*time.Millisecond), 100)
-	cpt := 0
 	machin := make(chan bool)
 	mxAlice := m.Subscribe("alice")
 
@@ -16,7 +15,6 @@ func TestMailbox(t *testing.T) {
 		for {
 			msg := <-mails
 			if string(msg) == "plop" {
-				cpt++
 				machin <- true
 			}
 		}
@@ -27,7 +25,6 @@ func TestMailbox(t *testing.T) {
 		for {
 			msg := <-mails
 			if string(msg) == "plop" {
-				cpt++
 				machin <- true
 			}
 		}
@@ -38,10 +35,6 @@ func TestMailbox(t *testing.T) {
 	}
 	<-machin
 	<-machin
-
-	if cpt != 2 {
-		t.Error("Not enough messages sent", cpt)
-	}
 
 	mxBob.Leave()
 
@@ -74,9 +67,6 @@ func TestMailbox(t *testing.T) {
 	}
 	mxAlice2.Mails() <- []byte("plop")
 	<-machin
-	if cpt != 3 {
-		t.Error("Direct mail miss : ", cpt)
-	}
 
 	<-m.dead
 	if m.Length() > 0 {
