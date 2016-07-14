@@ -1,21 +1,23 @@
 package mailbox
 
 import (
+	"sync"
 	"testing"
 	"time"
 )
 
 func TestMailbox(t *testing.T) {
 	m := New(time.Duration(150*time.Millisecond), 100)
-	machin := make(chan bool)
+	var wg sync.WaitGroup
 	mxAlice := m.Subscribe("alice")
 
+	wg.Add(2)
 	go func() {
 		mails := mxAlice.Mails()
 		for {
 			msg := <-mails
 			if string(msg) == "plop" {
-				machin <- true
+				wg.Done()
 			}
 		}
 	}()
@@ -25,7 +27,7 @@ func TestMailbox(t *testing.T) {
 		for {
 			msg := <-mails
 			if string(msg) == "plop" {
-				machin <- true
+				wg.Done()
 			}
 		}
 	}()
@@ -33,8 +35,7 @@ func TestMailbox(t *testing.T) {
 	if published != 2 {
 		t.Error("Message sent", published)
 	}
-	<-machin
-	<-machin
+	wg.Wait()
 
 	mxBob.Leave()
 
@@ -65,8 +66,9 @@ func TestMailbox(t *testing.T) {
 	if !mxAlice.ETA().IsZero() {
 		t.Error("Alice ETA is not zero")
 	}
+	wg.Add(1)
 	mxAlice2.Mails() <- []byte("plop")
-	<-machin
+	wg.Wait()
 
 	<-m.dead
 	if m.Length() > 0 {
