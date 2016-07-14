@@ -1,48 +1,66 @@
 package mailbox
 
 import (
+	//"fmt"
 	"sync"
 	"time"
 )
 
-var zero time.Time
-
-func init() {
-	zero = time.Unix(0, 0)
-}
-
-type Mailbox struct {
-	eta       time.Time
-	ttl       time.Duration
-	trashtube chan *Mailbox
-	user      string
-	Mails     chan []byte
-}
-
-func (mx *Mailbox) Leave() {
-	mx.eta = time.Now().Add(mx.ttl)
-	go func() {
-		time.Sleep(mx.ttl)
-		mx.trashtube <- mx
-	}()
-}
-
 type Mailboxes struct {
-	boxes     map[string]*Mailbox
-	lock      sync.Mutex
-	ttl       time.Duration
-	boxSize   int
-	trashtube chan *Mailbox
+	boxes   map[string]*mailbox
+	lock    sync.RWMutex
+	ttl     time.Duration
+	boxSize int
+	dead    chan string
+}
+
+type mailbox struct {
+	death *time.Timer
+	eta   time.Time
+	mails chan []byte
+}
+
+type MailboxProxy struct {
+	parent *Mailboxes
+	user   string
+}
+
+func (mp *MailboxProxy) Mails() chan []byte {
+	return mp.parent.boxes[mp.user].mails
+}
+
+func (mp *MailboxProxy) Leave() {
+	mp.parent.lock.RLock()
+	m := mp.parent.boxes[mp.user]
+	mp.parent.lock.RUnlock()
+	now := time.Now()
+	if m.death != nil {
+		m.death.Reset(mp.parent.ttl)
+	} else {
+		m.death = time.AfterFunc(mp.parent.ttl, func() {
+			mp.parent.lock.Lock()
+			delete(mp.parent.boxes, mp.user)
+			mp.parent.lock.Unlock()
+			mp.parent.dead <- mp.user
+		})
+	}
+	m.eta = now.Add(mp.parent.ttl)
+}
+
+func (mp *MailboxProxy) DontLeave() {
+	mp.parent.lock.RLock()
+	mp.parent.boxes[mp.user].death.Stop()
+	mp.parent.boxes[mp.user].eta = time.Time{}
+	mp.parent.lock.RUnlock()
 }
 
 func New(ttl time.Duration, boxSize int) *Mailboxes {
 	m := Mailboxes{
-		boxes:     make(map[string]*Mailbox),
-		ttl:       ttl,
-		boxSize:   boxSize,
-		trashtube: make(chan *Mailbox),
+		boxes:   make(map[string]*mailbox),
+		ttl:     ttl,
+		boxSize: boxSize,
+		dead:    make(chan string),
 	}
-	go m.gc()
 	return &m
 }
 
@@ -50,41 +68,30 @@ func (m *Mailboxes) Length() int {
 	return len(m.boxes)
 }
 
-func (m *Mailboxes) gc() {
-	for {
-		mx := <-m.trashtube
-		now := time.Now()
-		if mx.eta != zero && now.After(mx.eta) {
-			defer m.lock.Unlock()
-			m.lock.Lock()
-			delete(m.boxes, mx.user)
-		}
-	}
-}
-
-func (m *Mailboxes) Publish(mail []byte) {
-	defer m.lock.Unlock()
-	m.lock.Lock()
+func (m *Mailboxes) Publish(mail []byte) int {
+	defer m.lock.RUnlock()
+	m.lock.RLock()
+	cpt := 0
 	for _, box := range m.boxes {
-		box.Mails <- mail
+		box.mails <- mail
+		cpt += 1
 	}
+	return cpt
 }
 
-func (m *Mailboxes) Subscribe(user string) *Mailbox {
-	defer m.lock.Unlock()
-	m.lock.Lock()
-	var mx *Mailbox
-	mx, ok := m.boxes[user]
+func (m *Mailboxes) Subscribe(user string) *MailboxProxy {
+	m.lock.RLock()
+	_, ok := m.boxes[user]
+	m.lock.RUnlock()
 	if !ok {
-		mx = &Mailbox{
-			Mails:     make(chan []byte, m.boxSize),
-			trashtube: m.trashtube,
-			user:      user,
-			eta:       zero,
+		m.lock.Lock()
+		m.boxes[user] = &mailbox{
+			mails: make(chan []byte, m.boxSize),
 		}
-		m.boxes[user] = mx
-	} else {
-		mx.eta = zero
+		m.lock.Unlock()
 	}
-	return mx
+	return &MailboxProxy{
+		user:   user,
+		parent: m,
+	}
 }

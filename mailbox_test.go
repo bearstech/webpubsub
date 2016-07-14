@@ -6,42 +6,73 @@ import (
 )
 
 func TestMailbox(t *testing.T) {
-	m := New(time.Duration(100*time.Millisecond), 100)
-	mx_alice := m.Subscribe("alice")
-	mx_bob := m.Subscribe("bob")
+	m := New(time.Duration(150*time.Millisecond), 100)
 	cpt := 0
+	machin := make(chan bool)
+	mxAlice := m.Subscribe("alice")
+
 	go func() {
 		for {
-			msg := <-mx_alice.Mails
-			if string(msg) != "plop" {
-				t.Error("Bad message :", msg)
+			msg := <-mxAlice.Mails()
+			if string(msg) == "plop" {
+				cpt++
+				machin <- true
 			}
-			cpt += 1
 		}
 	}()
+	mxBob := m.Subscribe("bob")
 	go func() {
 		for {
-			<-mx_bob.Mails
-			cpt += 1
+			msg := <-mxBob.Mails()
+			if string(msg) == "plop" {
+				cpt++
+				machin <- true
+			}
 		}
 	}()
-	m.Publish([]byte("plop"))
-	time.Sleep(time.Duration(10 * time.Millisecond))
+	published := m.Publish([]byte("plop"))
+	if published != 2 {
+		t.Error("Message sent", published)
+	}
+	<-machin
+	<-machin
+
 	if cpt != 2 {
 		t.Error("Not enough messages sent", cpt)
 	}
-	mx_alice.Leave()
-	mx_alice2 := m.Subscribe("alice")
-	if mx_alice != mx_alice2 {
-		t.Error("It's not twice the same box")
+
+	mxBob.Leave()
+
+	resp := <-m.dead
+	if resp != "bob" {
+		t.Error("Bob should be deleted : ", resp)
 	}
-	time.Sleep(time.Duration(200 * time.Millisecond))
-	if m.Length() != 2 {
-		t.Error("Cancel leave miss")
-	}
-	mx_bob.Leave()
-	time.Sleep(time.Duration(200 * time.Millisecond))
 	if m.Length() != 1 {
-		t.Error("One should had left")
+		t.Error("One should had left", m.Length())
 	}
+	if !m.boxes["alice"].eta.IsZero() {
+		t.Error("Alice ETA is not zero")
+	}
+	mxAlice.Leave()
+	if m.boxes["alice"].eta.IsZero() {
+		t.Error("Alice ETA is zero")
+	}
+	mxAlice.DontLeave()
+	if !m.boxes["alice"].eta.IsZero() {
+		t.Error("Alice ETA is not zero")
+	}
+
+	mxAlice.Leave()
+	mxAlice2 := m.Subscribe("alice")
+	mxAlice2.Mails() <- []byte("plop")
+	<-machin
+	if cpt != 3 {
+		t.Error("Direct mail miss : ", cpt)
+	}
+
+	<-m.dead
+	if m.Length() > 0 {
+		t.Error("There are zombies")
+	}
+
 }
