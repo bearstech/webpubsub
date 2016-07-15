@@ -16,7 +16,7 @@ func TestMailbox(t *testing.T) {
 		mails := mxAlice.Mails()
 		for {
 			msg := <-mails
-			if string(msg) == "plop" {
+			if msg.Body == "plop" {
 				wg.Done()
 			}
 		}
@@ -26,12 +26,12 @@ func TestMailbox(t *testing.T) {
 		mails := mxBob.Mails()
 		for {
 			msg := <-mails
-			if string(msg) == "plop" {
+			if msg.Body == "plop" {
 				wg.Done()
 			}
 		}
 	}()
-	published := m.Publish("a", []byte("plop"))
+	published := m.Publish(Message{"a", "plop"})
 	if published != 2 {
 		t.Error("Message sent", published)
 	}
@@ -67,7 +67,7 @@ func TestMailbox(t *testing.T) {
 		t.Error("Alice ETA is not zero")
 	}
 	wg.Add(1)
-	mxAlice2.Mails() <- []byte("plop")
+	mxAlice2.Mails() <- Message{"a", "plop"}
 	wg.Wait()
 
 	<-m.dead
