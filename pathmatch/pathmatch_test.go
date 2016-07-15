@@ -46,6 +46,13 @@ func TestPath(t *testing.T) {
 	if !pattern.Match("a/b") {
 		t.Error("Oups same stuff")
 	}
+	pattern, _ = New("a/#")
+	if pattern.Match("b") {
+		t.Error("Oups same stuff")
+	}
+	if !pattern.Match("a/b/c") {
+		t.Error("Oups same stuff")
+	}
 }
 
 func TestMultiPath(t *testing.T) {
