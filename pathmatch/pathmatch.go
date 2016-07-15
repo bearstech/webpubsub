@@ -15,45 +15,62 @@ import (
 
 // A path pattern
 type Pattern struct {
-	path []string
+	paths [][]string
 }
 
 //NewPattern builds a new pattern and check syntax errors
-func NewPattern(pattern string) (*Pattern, error) {
-	if len(pattern) == 0 {
-		return nil, errors.New("Empty pattern is not valid, use \"#\"")
-	}
-	if pattern[0] == '/' {
-		return nil, errors.New("Leading / is not valid")
-	}
-	hash := strings.Index(pattern, "#")
-	if hash != -1 {
-		if hash+1 != len(pattern) {
-			return nil, errors.New("# is not ending the pattern")
+func New(patterns ...string) (*Pattern, error) {
+	px := make([][]string, 0)
+	for _, pattern := range patterns {
+		if len(pattern) == 0 {
+			return nil, errors.New("Empty pattern is not valid, use \"#\"")
 		}
-		if pattern[len(pattern)-2] != '/' {
-			return nil, errors.New("# should be the complete name")
+		if pattern[0] == '/' {
+			return nil, errors.New("Leading / is not valid")
 		}
+		hash := strings.Index(pattern, "#")
+		if hash != -1 {
+			if hash+1 != len(pattern) {
+				return nil, errors.New("# is not ending the pattern")
+			}
+			if pattern[len(pattern)-2] != '/' {
+				return nil, errors.New("# should be the complete name")
+			}
+		}
+		px = append(px, strings.Split(pattern, "/"))
 	}
-	return &Pattern{strings.Split(pattern, "/")}, nil
+	return &Pattern{px}, nil
 }
 
-func (p *Pattern) Match(path string) bool {
-	pp := strings.Split(path, "/")
-	for i, pat := range p.path {
+func oneMatch(path []string, pattern []string) bool {
+	if len(pattern) > len(path) {
+		return false
+	}
+	for i, pat := range path {
 		switch pat {
 		case "#":
 			return true
 		case "+":
 			continue
 		default:
-			if i > len(pp)-1 {
+			if i > len(path)-1 {
 				return false
 			}
-			if pat != pp[i] {
+			if pat != path[i] {
 				return false
 			}
 		}
 	}
 	return true
+
+}
+
+func (p *Pattern) Match(path string) bool {
+	pp := strings.Split(path, "/")
+	for _, path := range p.paths {
+		if oneMatch(pp, path) {
+			return true
+		}
+	}
+	return false
 }

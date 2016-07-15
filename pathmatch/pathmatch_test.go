@@ -5,34 +5,34 @@ import (
 )
 
 func TestPattern(t *testing.T) {
-	_, ok := NewPattern("a/b/##")
+	_, ok := New("a/b/##")
 	if ok == nil {
 		t.Error()
 	}
-	_, ok = NewPattern("a/b/a#")
+	_, ok = New("a/b/a#")
 	if ok == nil {
 		t.Error()
 	}
-	_, ok = NewPattern("a/#/c")
+	_, ok = New("a/#/c")
 	if ok == nil {
 		t.Error()
 	}
-	_, ok = NewPattern("a/#")
+	_, ok = New("a/#")
 	if ok != nil {
 		t.Error("This pattern is valid")
 	}
-	_, ok = NewPattern("")
+	_, ok = New("")
 	if ok == nil {
 		t.Error()
 	}
-	_, ok = NewPattern("/a/b/c")
+	_, ok = New("/a/b/c")
 	if ok == nil {
 		t.Error()
 	}
 }
 
 func TestPath(t *testing.T) {
-	pattern, err := NewPattern("a/+/c")
+	pattern, err := New("a/+/c")
 	if err != nil {
 		t.Error("Bad pattern : ", err)
 	}
@@ -42,7 +42,18 @@ func TestPath(t *testing.T) {
 	if pattern.Match("a/b") {
 		t.Error("Oups")
 	}
-	pattern, _ = NewPattern("a/b")
+	pattern, _ = New("a/b")
+	if !pattern.Match("a/b") {
+		t.Error("Oups same stuff")
+	}
+}
+
+func TestMultiPath(t *testing.T) {
+	pattern, err := New("b/c/d", "a/b/c")
+	if err != nil {
+		t.Error("Bad pattern : ", err)
+	}
+	pattern, _ = New("a/b")
 	if !pattern.Match("a/b") {
 		t.Error("Oups same stuff")
 	}

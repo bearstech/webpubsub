@@ -31,7 +31,7 @@ func TestMailbox(t *testing.T) {
 			}
 		}
 	}()
-	published := m.Publish([]byte("plop"))
+	published := m.Publish("a", []byte("plop"))
 	if published != 2 {
 		t.Error("Message sent", published)
 	}

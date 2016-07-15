@@ -5,6 +5,17 @@ import (
 	"time"
 )
 
+type Matcher interface {
+	Match(path string) bool
+}
+
+type AllMatcher struct {
+}
+
+func (am *AllMatcher) Match(path string) bool {
+	return true
+}
+
 type Mailboxes struct {
 	boxes   map[string]*mailbox
 	lock    sync.RWMutex
@@ -14,9 +25,10 @@ type Mailboxes struct {
 }
 
 type mailbox struct {
-	death *time.Timer
-	eta   time.Time
-	mails chan []byte
+	death   *time.Timer
+	eta     time.Time
+	mails   chan []byte
+	pattern Matcher
 }
 
 type MailboxProxy struct {
@@ -75,18 +87,24 @@ func (m *Mailboxes) Length() int {
 	return len(m.boxes)
 }
 
-func (m *Mailboxes) Publish(mail []byte) int {
+func (m *Mailboxes) Publish(path string, mail []byte) int {
 	defer m.lock.RUnlock()
 	m.lock.RLock()
 	cpt := 0
 	for _, box := range m.boxes {
-		box.mails <- mail
-		cpt += 1
+		if box.pattern.Match(path) {
+			box.mails <- mail
+			cpt += 1
+		}
 	}
 	return cpt
 }
 
 func (m *Mailboxes) Subscribe(user string) *MailboxProxy {
+	return m.SubscribePattern(user, &AllMatcher{})
+}
+
+func (m *Mailboxes) SubscribePattern(user string, pattern Matcher) *MailboxProxy {
 	m.lock.RLock()
 	mx, ok := m.boxes[user]
 	if ok {
@@ -106,7 +124,8 @@ func (m *Mailboxes) Subscribe(user string) *MailboxProxy {
 	if !ok {
 		m.lock.Lock()
 		m.boxes[user] = &mailbox{
-			mails: make(chan []byte, m.boxSize),
+			mails:   make(chan []byte, m.boxSize),
+			pattern: pattern,
 		}
 		m.lock.Unlock()
 	}
