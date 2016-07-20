@@ -21,12 +21,14 @@ type Message struct {
 	Body interface{}
 }
 
+type user string
+
 type Mailboxes struct {
-	boxes   map[string]*mailbox
+	boxes   map[user]*mailbox
 	lock    sync.RWMutex
 	ttl     time.Duration
 	boxSize int
-	dead    chan string
+	dead    chan user
 }
 
 type mailbox struct {
@@ -38,7 +40,7 @@ type mailbox struct {
 
 type MailboxProxy struct {
 	parent *Mailboxes
-	user   string
+	user   user
 }
 
 func (mp *MailboxProxy) Mails() chan Message {
@@ -80,10 +82,10 @@ func (mp *MailboxProxy) DontLeave() {
 
 func New(ttl time.Duration, boxSize int) *Mailboxes {
 	m := Mailboxes{
-		boxes:   make(map[string]*mailbox),
+		boxes:   make(map[user]*mailbox),
 		ttl:     ttl,
 		boxSize: boxSize,
-		dead:    make(chan string),
+		dead:    make(chan user),
 	}
 	return &m
 }
@@ -109,9 +111,9 @@ func (m *Mailboxes) Subscribe(user string) *MailboxProxy {
 	return m.SubscribePattern(user, &AllMatcher{})
 }
 
-func (m *Mailboxes) SubscribePattern(user string, pattern Matcher) *MailboxProxy {
+func (m *Mailboxes) SubscribePattern(uzer string, pattern Matcher) *MailboxProxy {
 	m.lock.RLock()
-	mx, ok := m.boxes[user]
+	mx, ok := m.boxes[user(uzer)]
 	if ok {
 		gni := mx.death.Stop()
 		if gni {
@@ -128,14 +130,14 @@ func (m *Mailboxes) SubscribePattern(user string, pattern Matcher) *MailboxProxy
 	m.lock.RUnlock()
 	if !ok {
 		m.lock.Lock()
-		m.boxes[user] = &mailbox{
+		m.boxes[user(uzer)] = &mailbox{
 			mails:   make(chan Message, m.boxSize),
 			pattern: pattern,
 		}
 		m.lock.Unlock()
 	}
 	return &MailboxProxy{
-		user:   user,
+		user:   user(uzer),
 		parent: m,
 	}
 }
