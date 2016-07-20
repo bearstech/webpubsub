@@ -17,8 +17,8 @@ func (am *AllMatcher) Match(path string) bool {
 }
 
 type Message struct {
-	Path string
-	Body interface{}
+	Path string      `json:path`
+	Body interface{} `json:body`
 }
 
 type user string

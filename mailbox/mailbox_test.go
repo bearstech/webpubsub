@@ -1,10 +1,29 @@
 package mailbox
 
 import (
+	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestEncoding(t *testing.T) {
+	type test struct {
+		Age  int    `json:age`
+		Name string `json:name`
+	}
+	msg := Message{
+		Path: "a",
+		Body: test{
+			Age:  42,
+			Name: "Robert",
+		},
+	}
+	j, _ := json.Marshal(msg)
+	fmt.Println(string(j))
+
+}
 
 func TestMailbox(t *testing.T) {
 	m := New(time.Duration(150*time.Millisecond), 100)
