@@ -59,7 +59,7 @@ func guessRequestResponse(raw json.RawMessage) (req *request, resp *response, js
 	var b message
 	json.Unmarshal(raw, &b)
 	id := b.Id
-	if err_ok && result_ok {
+	if !err_ok && !result_ok {
 		// impossible
 		return nil, nil, &jsonrpcerror{id, "Both result and error"}
 	}
