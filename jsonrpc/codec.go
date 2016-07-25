@@ -68,7 +68,14 @@ func (c *serverCodec) WriteResponse(r *rpc.Response, x interface{}) error {
 
 	c.resp = &response{Id: b}
 	if r.Error == "" {
-		c.resp.Result = x
+
+		raw, err := json.Marshal(x)
+		if err == nil {
+			rr := json.RawMessage(raw)
+			c.resp.Result = &rr
+		} else {
+			return err
+		}
 	} else {
 		c.resp.Error = r.Error
 	}

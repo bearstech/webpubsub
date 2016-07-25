@@ -2,23 +2,8 @@ package jsonrpc
 
 import (
 	"encoding/json"
+	"fmt"
 )
-
-type message struct {
-	Id *json.RawMessage `json:"id"`
-}
-
-type request struct {
-	Id     *json.RawMessage `json:"id"`
-	Method string           `json:"method"`
-	Params *json.RawMessage `json:"params"`
-}
-
-type response struct {
-	Id     *json.RawMessage `json:"id"`
-	Result interface{}      `json:"result"`
-	Error  interface{}      `json:"error"`
-}
 
 func (r *router) sendResponses() {
 	for {
@@ -33,7 +18,7 @@ func (r *router) Serve() {
 		r.conn.ReadJSON(&raw)
 		req, resp, err := guessRequestResponse(raw)
 		if err != nil {
-			r.error(err)
+			r.down <- err.Message()
 			continue
 		}
 		if req != nil {
@@ -42,14 +27,21 @@ func (r *router) Serve() {
 			if resp == nil {
 				panic("nil response")
 			}
-			r.response <- resp
+			if resp.Id == nil {
+				r.notification <- resp
+			}
+			var id uint64
+			oups := json.Unmarshal(*resp.Id, &id)
+			if oups != nil {
+				r.down <- NewError(nil, oups.Error()).Message()
+				continue
+			}
+			re, ok := r.response[id]
+			if !ok {
+				r.down <- NewError(nil, fmt.Sprintf("Unknwon id : %i", id))
+				continue
+			}
+			re <- resp
 		}
-	}
-}
-
-func (r *router) error(err *jsonrpcerror) {
-	r.down <- response{
-		Id:    err.id,
-		Error: err.message,
 	}
 }

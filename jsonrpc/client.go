@@ -2,6 +2,8 @@ package jsonrpc
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 )
 
 type Client struct {
@@ -25,10 +27,9 @@ func (c *Client) Call(serviceMethod string, args interface{}, reply interface{})
 }
 
 func (c *Client) call(id uint64, serviceMethod string, args interface{}, reply interface{}) error {
-
 	p, err := json.Marshal(args)
 	if err != nil {
-		return nil
+		return err
 	}
 	var i []byte
 	if id == 0 {
@@ -47,7 +48,18 @@ func (c *Client) call(id uint64, serviceMethod string, args interface{}, reply i
 		Params: &pp,
 		Id:     &ii,
 	}
+	if id != 0 {
+		c.router.response[id] = make(chan *response)
+	}
 	c.router.down <- req
-	// FIXME wait for the response
-	return nil
+	if id == 0 {
+		return nil
+	}
+	// FIXME timeout
+	resp := <-c.router.response[id]
+	if resp.Error == nil {
+		return json.Unmarshal(*resp.Result, &reply)
+	} else {
+		return errors.New(fmt.Sprintf("jsonr rpc errors %#v", resp.Error))
+	}
 }
