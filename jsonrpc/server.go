@@ -33,20 +33,23 @@ func (r *router) Serve() {
 		r.conn.ReadJSON(&raw)
 		req, resp, err := guessRequestResponse(raw)
 		if err != nil {
-			r.error(err.id, err.message)
+			r.error(err)
 			continue
 		}
 		if req != nil {
 			r.request <- req
 		} else { // it's a response
+			if resp == nil {
+				panic("nil response")
+			}
 			r.response <- resp
 		}
 	}
 }
 
-func (r *router) error(id *json.RawMessage, msg string) {
+func (r *router) error(err *jsonrpcerror) {
 	r.down <- response{
-		Id:    id,
-		Error: msg,
+		Id:    err.id,
+		Error: err.message,
 	}
 }
