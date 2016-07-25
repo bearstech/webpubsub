@@ -40,7 +40,13 @@ func simpleSever(ws *websocket.Conn) {
 	r.Serve()
 }
 
-func TestSimpleserver(t *testing.T) {
+func talkingToClient(ws *websocket.Conn) {
+	r := NewRouter(&goWsRw{ws})
+	c := r.Client()
+	c.Notification("chan", "beuha")
+}
+
+func TestSimpleServer(t *testing.T) {
 	go func() {
 		rpc.Register(new(Arith))
 		http.Handle("/conn", websocket.Handler(simpleSever))
@@ -57,5 +63,24 @@ func TestSimpleserver(t *testing.T) {
 	client.Call("Arith.Multiply", Args{A: 4, B: 5}, &result)
 	if result != 20 {
 		t.Error("Bad response :", result)
+	}
+}
+
+func TestServerToClient(t *testing.T) {
+	go func() {
+		http.Handle("/conn2", websocket.Handler(talkingToClient))
+		http.ListenAndServe("localhost:7000", nil)
+	}()
+
+	origin := "http://localhost/"
+	url := "ws://localhost:7000/conn2"
+	ws, err := websocket.Dial(url, "", origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var notif request
+	websocket.JSON.Receive(ws, &notif)
+	if notif.Method != "chan" {
+		t.Fatal(notif)
 	}
 }
