@@ -1,6 +1,7 @@
 package jsonrpc
 
 import (
+	"encoding/json"
 	"golang.org/x/net/websocket"
 	"net/http"
 	"net/rpc"
@@ -40,12 +41,6 @@ func simpleSever(ws *websocket.Conn) {
 	r.Serve()
 }
 
-func talkingToClient(ws *websocket.Conn) {
-	r := NewRouter(&goWsRw{ws})
-	c := r.Client()
-	c.Notification("chan", "beuha")
-}
-
 func TestSimpleServer(t *testing.T) {
 	go func() {
 		rpc.Register(new(Arith))
@@ -66,7 +61,13 @@ func TestSimpleServer(t *testing.T) {
 	}
 }
 
-func TestServerToClient(t *testing.T) {
+func talkingToClient(ws *websocket.Conn) {
+	r := NewRouter(&goWsRw{ws})
+	c := r.Client()
+	c.Notification("chan", "beuha")
+}
+
+func TestServerToClientNotification(t *testing.T) {
 	go func() {
 		http.Handle("/conn2", websocket.Handler(talkingToClient))
 		http.ListenAndServe("localhost:7000", nil)
@@ -82,5 +83,48 @@ func TestServerToClient(t *testing.T) {
 	websocket.JSON.Receive(ws, &notif)
 	if notif.Method != "chan" {
 		t.Fatal(notif)
+	}
+}
+
+func askSomethingToClient(ws *websocket.Conn) {
+	r := NewRouter(&goWsRw{ws})
+	c := r.Client()
+	var resp string
+	err := c.Call("hello", "world", &resp)
+	if err != nil {
+		panic(err)
+	}
+	if resp != "beuha" {
+		panic("not Beuha")
+	}
+	c.Notification("chan", true)
+}
+
+func TestServerToClientRequest(t *testing.T) {
+	go func() {
+		http.Handle("/conn3", websocket.Handler(askSomethingToClient))
+		http.ListenAndServe("localhost:7000", nil)
+	}()
+
+	origin := "http://localhost/"
+	url := "ws://localhost:7000/conn2"
+	ws, err := websocket.Dial(url, "", origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var req request
+	var nianiani = "beuha"
+	websocket.JSON.Receive(ws, &req)
+	j, err := json.Marshal(nianiani)
+	jj := json.RawMessage(j)
+	resp := response{
+		Id:     req.Id,
+		Result: &jj,
+	}
+	websocket.JSON.Send(ws, resp)
+	var ok bool
+	websocket.JSON.Receive(ws, &ok)
+	if !ok {
+		t.Error("oups")
 	}
 }
