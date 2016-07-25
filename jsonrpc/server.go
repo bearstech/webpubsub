@@ -4,21 +4,14 @@ import (
 	"encoding/json"
 )
 
-type JSONReaderWriter interface {
-	ReadJSON(v interface{}) error
-	WriteJSON(v interface{}) error
-}
-
-type router struct {
-	conn     JSONReaderWriter
-	request  chan request
-	response chan response
+type message struct {
+	Id *json.RawMessage `json:"id"`
 }
 
 type request struct {
+	Id     *json.RawMessage `json:"id"`
 	Method string           `json:"method"`
 	Params *json.RawMessage `json:"params"`
-	Id     *json.RawMessage `json:"id"`
 }
 
 type response struct {
@@ -27,68 +20,32 @@ type response struct {
 	Error  interface{}      `json:"error"`
 }
 
-type berk struct {
-	Id *json.RawMessage `json:"id"`
-}
-
-func NewRouter(rw JSONReaderWriter) *router {
-	r := router{
-		conn:     rw,
-		request:  make(chan request),
-		response: make(chan response),
-	}
-	return &r
-}
-
 func (r *router) sendResponses() {
 	for {
-		resp := <-r.response
+		resp := <-r.down
 		r.conn.WriteJSON(resp)
 	}
 }
 
 func (r *router) Serve() {
-	go r.sendResponses()
 	for {
 		var raw json.RawMessage
-		var stuff map[string]interface{}
 		r.conn.ReadJSON(&raw)
-
-		err := json.Unmarshal(raw, &stuff)
+		req, resp, err := guessRequestResponse(raw)
 		if err != nil {
-			r.error(nil, "Can't parse JSON : "+err.Error())
+			r.error(err.id, err.message)
 			continue
 		}
-		_, ok := stuff["method"]
-		if ok { // it should be a request
-			var req request
-			json.Unmarshal(raw, &req)
+		if req != nil {
 			r.request <- req
-		} else {
-			_, err_ok := stuff["error"]
-			_, result_ok := stuff["result"]
-			var b berk
-			json.Unmarshal(raw, &b)
-			id := b.Id
-			if err_ok && result_ok {
-				// impossible
-				r.error(id, "Both result and error")
-				continue
-			}
-			if !(err_ok || result_ok) {
-				r.error(id, "Can't find result nor error")
-				continue
-			}
-			// it's a response
-			var resp response
-			json.Unmarshal(raw, &resp)
+		} else { // it's a response
 			r.response <- resp
 		}
 	}
 }
 
 func (r *router) error(id *json.RawMessage, msg string) {
-	r.response <- response{
+	r.down <- response{
 		Id:    id,
 		Error: msg,
 	}

@@ -10,8 +10,8 @@ import (
 var errMissingParams = errors.New("jsonrpc: request body missing params")
 
 type serverCodec struct {
-	req     request
-	resp    response
+	req     *request
+	resp    *response
 	route   *router
 	mutex   sync.Mutex
 	seq     uint64
@@ -66,13 +66,13 @@ func (c *serverCodec) WriteResponse(r *rpc.Response, x interface{}) error {
 		b = &null
 	}
 
-	c.resp = response{Id: b}
+	c.resp = &response{Id: b}
 	if r.Error == "" {
 		c.resp.Result = x
 	} else {
 		c.resp.Error = r.Error
 	}
-	c.route.response <- c.resp
+	c.route.down <- c.resp
 	return nil
 }
 
