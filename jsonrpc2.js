@@ -42,17 +42,21 @@ var jsonrpc = function(url, onopen) {
         console.log("ws error", evt);
     };
 
+    var defined = function(a) {
+        return a !== null && a !== undefined;
+    };
+
     jrpc.ws.onmessage = function(evt) {
         var msg = JSON.parse(evt.data);
-        if (msg.result || msg.error) {
-            if (msg.id) {
-                jrpc._requests[msg.id].call(jrpc, msg.resp , msg.error);
+        if (defined(msg.result) || defined(msg.error)) {
+            if (defined(msg.id)) {
+                jrpc._requests[msg.id].call(jrpc, msg.result , msg.error);
             } else {
                 jrpc.onerror.call(jrpc, msg.resp , msg.error);
             }
         } else {
-            if (msg.method) {
-                if (msg.id) {
+            if (defined(msg.method)) {
+                if (defined(msg.id)) {
                     jrpc._register[msg.method].call(this, msg.params,
                             function(result, error) {
                                 var response = {
